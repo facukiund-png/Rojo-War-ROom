@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilo CSS personalizado (INCLUYE EL TICKER DE NOTICIAS)
+# Estilo CSS personalizado
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; font-weight: bold; }
@@ -27,27 +27,32 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 5px; }
     div[data-testid="stMetricValue"] { font-size: 24px; color: #e63946; }
     
-    /* ESTILO DEL TICKER (BARRA DE NOTICIAS) */
+    /* ESTILO DEL TICKER CORREGIDO Y MEJORADO */
     .ticker-wrap {
         width: 100%;
         overflow: hidden;
         background-color: #b71c1c; /* Rojo Oscuro */
-        color: white;
-        padding: 10px;
+        padding: 12px;
         white-space: nowrap;
         box-sizing: border-box;
         border-radius: 5px;
         margin-bottom: 20px;
+        border-left: 10px solid #ffffff;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     .ticker {
         display: inline-block;
-        animation: ticker 40s linear infinite;
+        white-space: nowrap;
+        animation: ticker 45s linear infinite;
     }
     .ticker-item {
         display: inline-block;
-        padding: 0 2rem;
-        font-size: 18px;
-        font-weight: bold;
+        padding: 0 3rem;
+        font-size: 22px; 
+        font-weight: 800;
+        color: #ffffff !important; 
+        font-family: 'Arial Black', sans-serif;
+        text-transform: uppercase;
     }
     @keyframes ticker {
         0% { transform: translate3d(100%, 0, 0); }
@@ -56,16 +61,44 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIONES AUXILIARES ---
+# --- FUNCIONES AUXILIARES (MOTOR DE BÚSQUEDA MEJORADO) ---
 
 @st.cache_data(ttl=300) 
-def buscar_noticias_rss(query):
-    """Busca noticias, fuerza las últimas 24hs y ordena por fecha real"""
-    # 1. Agregamos ' when:1d' al query para forzar noticias de HOY
-    query_time = query + " when:1d"
-    encoded_query = urllib.parse.quote(query_time)
+def buscar_noticias_rss(tema_especifico=None):
+    """
+    Motor de Búsqueda Inteligente para C.A. Independiente.
+    Filtra homónimos y busca en profundidad.
+    """
+    # 1. TÉRMINOS POSITIVOS (Si tiene esto, ES del Rojo)
+    # Incluimos apodos, lugares, dirigentes clave y deportes anexos
+    terminos_rojos = (
+        'Avellaneda OR "Rey de Copas" OR "El Rojo" OR "CAI" OR "Diablos Rojos" OR '
+        '"Libertadores de América" OR "Ricardo Enrique Bochini" OR '
+        'Vaccari OR Grindetti OR "Daniel Seoane" OR '
+        '"Villa Domínico" OR Wilde OR '
+        'Marcone OR Mancuello OR Ávalos OR "Santi López" OR '  # Jugadores Referentes
+        'Reserva OR Inferiores OR Futsal OR Basquet'
+    )
+
+    # 2. TÉRMINOS NEGATIVOS (Si tiene esto, NO es lo que buscamos)
+    # Filtramos política nacional, cine y otros clubes homónimos
+    exclusion = (
+        '-Diputados -Senadores -"Candidato Independiente" -"Cine Independiente" '
+        '-"Música Independiente" -Santa -Medellin -Rivadavia -Chivilcoy -Neuquen'
+    )
+
+    # 3. CONSTRUCCIÓN DE LA QUERY
+    if tema_especifico:
+        # Si buscamos algo puntual (ej: "Inhibiciones"), lo sumamos al contexto del club
+        base_query = f'"Independiente" AND ({tema_especifico}) AND ({terminos_rojos}) {exclusion}'
+    else:
+        # Búsqueda GENERAL (Trae todo lo del mundo Independiente)
+        base_query = f'"Independiente" AND ({terminos_rojos}) {exclusion}'
+
+    # 4. FORZAR FECHA RECIENTE (Últimas 24-48hs para asegurar frescura)
+    query_final = base_query + " when:2d"
     
-    # 2. URL ajustada
+    encoded_query = urllib.parse.quote(query_final)
     url = f"https://news.google.com/rss/search?q={encoded_query}&hl=es-419&gl=AR&ceid=AR:es-419"
     
     try:
@@ -77,11 +110,11 @@ def buscar_noticias_rss(query):
                     'titulo': entry.title,
                     'link': entry.link,
                     'fecha': entry.published,
-                    'fecha_obj': entry.published_parsed, # Guardamos objeto fecha para ordenar
+                    'fecha_obj': entry.published_parsed, 
                     'fuente': entry.source.title if 'source' in entry else 'Google News'
                 })
             
-            # 3. AQUÍ ESTÁ LA MAGIA: Ordenamos la lista por fecha (más reciente primero)
+            # Ordenar por fecha real (lo más nuevo arriba)
             noticias.sort(key=lambda x: x['fecha_obj'], reverse=True)
             
         return noticias
@@ -128,52 +161,70 @@ tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia
     "🚨 ALERTAS", "📰 MEDIOS", "🗳️ POLÍTICA", "🐦 TWITTER", "📝 CLIPPING", "🧠 ESTRATEGIA", "🗺️ TERRITORIO", "🦎 DISCURSO POLIMÓRFICO", "📍 DOMINACIÓN VISUAL"
 ])
 
-# 1. PESTAÑA ALERTAS URGENTES (MODIFICADA CON TICKER)
+# 1. PESTAÑA ALERTAS URGENTES
 with tab_alertas:
     # --- TICKER DE ÚLTIMO MOMENTO (SLIDER) ---
     st.header("🚨 Radar de Crisis (En Vivo)")
     
-    # Buscamos noticias generales de Independiente de las últimas 24hs para el Ticker
-    noticias_ticker = buscar_noticias_rss("Independiente Avellaneda")
+    # Búsqueda GENERAL sin filtros de crisis, para ver todo lo que pasa
+    noticias_ticker = buscar_noticias_rss() 
     
     if noticias_ticker:
-        # Tomamos los 5 títulos más recientes para el slider
-        textos_ticker = [f"🔴 {n['titulo']}" for n in noticias_ticker[:5]]
-        string_ticker = "   |   ".join(textos_ticker)
+        # Tomamos los 7 títulos más recientes
+        textos_ticker = [f"👹 {n['titulo']}" for n in noticias_ticker[:7]]
+        string_ticker = "   ----------   ".join(textos_ticker)
+    else:
+        string_ticker = "🔴 Sin noticias recientes en el radar. Monitoreo activo."
         
-        # Inyectamos el HTML del ticker animado
-        st.markdown(f"""
-        <div class="ticker-wrap">
-            <div class="ticker">
-                <div class="ticker-item">{string_ticker}</div>
-            </div>
+    st.markdown(f"""
+    <div class="ticker-wrap">
+        <div class="ticker">
+            <div class="ticker-item">{string_ticker}</div>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
-    # --- CUERPO DE NOTICIAS DE CRISIS ---
+    # --- CUERPO DE NOTICIAS ---
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.subheader("🔥 Alertas Críticas (Filtradas)")
-        # Buscamos palabras peligrosas ESPECÍFICAS
-        palabras_clave = "Independiente AND (Inhibición OR Embargo OR FIFA OR TAS OR Renuncia OR Escándalo OR Barras OR Incidentes OR Deuda OR Vaccari)"
-        noticias_urgentes = buscar_noticias_rss(palabras_clave)
+        st.subheader("🔥 Todas las Novedades (Filtro Exhaustivo)")
+        st.caption("Incluye: Fútbol, Dirigencia, Reserva, Futsal, Institucional.")
         
-        if noticias_urgentes:
-            for n in noticias_urgentes[:10]: # Mostramos las 10 más nuevas
+        # Aquí usamos la función SIN parámetros para que traiga TODO lo relacionado al club
+        # Pero podemos filtrar visualmente si es Crisis
+        noticias_todas = buscar_noticias_rss()
+        
+        if noticias_todas:
+            for n in noticias_todas[:15]: # Mostramos las 15 más nuevas
                 with st.container(border=True):
                     col_ico, col_txt = st.columns([0.1, 0.9])
                     with col_ico:
-                        st.markdown("### 📢")
+                        # Icono dinámico según palabras clave
+                        if "Inhibi" in n['titulo'] or "Deuda" in n['titulo']:
+                            st.markdown("### 💸")
+                        elif "Ganó" in n['titulo'] or "Gol" in n['titulo']:
+                            st.markdown("### ⚽")
+                        elif "Vaccari" in n['titulo'] or "Grindetti" in n['titulo']:
+                            st.markdown("### 👔")
+                        else:
+                            st.markdown("### 📰")
+                            
                     with col_txt:
                         st.markdown(f"**[{n['titulo']}]({n['link']})**")
                         st.caption(f"🕒 {n['fecha']} | 📰 {n['fuente']}")
         else:
-            st.success("✅ No se detectan alertas graves en las últimas 24 horas.")
+            st.success("✅ No se detectan noticias nuevas. El radar está barriendo.")
             
     with col2:
         st.warning("⚠️ PANEL DE CONTROL")
-        st.metric(label="Noticias Hoy", value=len(noticias_ticker) if noticias_ticker else 0)
-        st.info("El sistema escanea noticias publicadas hace menos de 24hs.")
+        st.metric(label="Noticias Capturadas", value=len(noticias_ticker) if noticias_ticker else 0)
+        st.markdown("""
+        **Filtros Activos:**
+        * ✅ Deportes (Fútbol, Basket, Futsal)
+        * ✅ Sede/Predios (Wilde, Domínico)
+        * ✅ Dirigentes (Grindetti, Seoane)
+        * 🚫 Política Nacional (Diputados)
+        """)
 
 # 2. PESTAÑA MEDIOS
 with tab_medios:
@@ -182,12 +233,13 @@ with tab_medios:
     
     query = ""
     if filtro_medios == "Nacionales":
-        query = "Independiente Avellaneda site:ole.com.ar OR site:tycsports.com OR site:infobae.com"
+        query = 'site:ole.com.ar OR site:tycsports.com OR site:infobae.com OR site:lanacion.com.ar'
     elif filtro_medios == "Partidarios":
-        query = "Independiente (Infierno Rojo OR De la Cuna al Infierno OR Soy del Rojo OR LocoXelRojo)"
+        query = '(Infierno Rojo OR De la Cuna al Infierno OR Soy del Rojo OR LocoXelRojo OR "Muy Independiente")'
     else:
-        query = "Independiente Refuerzos Transferencias Vaccari"
+        query = '(Refuerzos OR Transferencias OR "Mercado de Pases" OR "Altas y Bajas")'
         
+    # Usamos la misma función maestra, pero le pasamos el filtro específico
     noticias = buscar_noticias_rss(query)
     
     if noticias:
@@ -205,8 +257,7 @@ with tab_politica:
     
     with col_p1:
         st.subheader("🕵️ Oficialismo")
-        q_oficial = "Néstor Grindetti OR Daniel Seoane OR Comisión Directiva Independiente"
-        noticias_oficial = buscar_noticias_rss(q_oficial)
+        noticias_oficial = buscar_noticias_rss('Grindetti OR Seoane OR "Comisión Directiva"')
         if noticias_oficial:
             for n in noticias_oficial[:5]:
                 st.markdown(f"• [{n['titulo']}]({n['link']})")
@@ -215,8 +266,7 @@ with tab_politica:
             
     with col_p2:
         st.subheader("🥊 Oposición")
-        q_opo = "Andrés Ducatenzeiler OR Fabián Doman OR Lista Roja OR Agrupación Independiente"
-        noticias_opo = buscar_noticias_rss(q_opo)
+        noticias_opo = buscar_noticias_rss('"Andrés Ducatenzeiler" OR "Fabián Doman" OR "Lista Roja" OR "Puro Sentimiento Rojo"')
         if noticias_opo:
             for n in noticias_opo[:5]:
                 st.markdown(f"• [{n['titulo']}]({n['link']})")
