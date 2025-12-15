@@ -1,3 +1,19 @@
+¡Entendido! Aquí tienes el archivo app.py definitivo y completo.
+
+¿Qué cambios incluye esta versión?
+
+Ticker de Noticias (Estilo TV): Una barra roja animada al principio que muestra los últimos 5 títulos.
+
+Filtro de 24 Horas: Obliga a Google a mostrar solo noticias de hoy (when:1d).
+
+Orden Cronológico Real: El código ahora ordena internamente las noticias para que la más reciente (ej: "hace 10 minutos") aparezca siempre primero.
+
+Mapa de Dominación: Se mantiene tu última función de mapas.
+
+Copia todo el bloque, borra lo anterior y pega esto:
+
+Python
+
 import streamlit as st
 import pandas as pd
 import feedparser
@@ -19,13 +35,40 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilo CSS personalizado
+# Estilo CSS personalizado (INCLUYE EL TICKER DE NOTICIAS)
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; font-weight: bold; }
     .alert { color: #ff4b4b; font-weight: bold; }
     .stButton>button { width: 100%; border-radius: 5px; }
     div[data-testid="stMetricValue"] { font-size: 24px; color: #e63946; }
+    
+    /* ESTILO DEL TICKER (BARRA DE NOTICIAS) */
+    .ticker-wrap {
+        width: 100%;
+        overflow: hidden;
+        background-color: #b71c1c; /* Rojo Oscuro */
+        color: white;
+        padding: 10px;
+        white-space: nowrap;
+        box-sizing: border-box;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .ticker {
+        display: inline-block;
+        animation: ticker 40s linear infinite;
+    }
+    .ticker-item {
+        display: inline-block;
+        padding: 0 2rem;
+        font-size: 18px;
+        font-weight: bold;
+    }
+    @keyframes ticker {
+        0% { transform: translate3d(100%, 0, 0); }
+        100% { transform: translate3d(-100%, 0, 0); }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -33,20 +76,30 @@ st.markdown("""
 
 @st.cache_data(ttl=300) 
 def buscar_noticias_rss(query):
-    """Busca noticias en Google News via RSS gratis"""
-    encoded_query = urllib.parse.quote(query)
+    """Busca noticias, fuerza las últimas 24hs y ordena por fecha real"""
+    # 1. Agregamos ' when:1d' al query para forzar noticias de HOY
+    query_time = query + " when:1d"
+    encoded_query = urllib.parse.quote(query_time)
+    
+    # 2. URL ajustada
     url = f"https://news.google.com/rss/search?q={encoded_query}&hl=es-419&gl=AR&ceid=AR:es-419"
+    
     try:
         feed = feedparser.parse(url)
         noticias = []
         if feed.entries:
-            for entry in feed.entries[:10]:
+            for entry in feed.entries:
                 noticias.append({
                     'titulo': entry.title,
                     'link': entry.link,
                     'fecha': entry.published,
+                    'fecha_obj': entry.published_parsed, # Guardamos objeto fecha para ordenar
                     'fuente': entry.source.title if 'source' in entry else 'Google News'
                 })
+            
+            # 3. AQUÍ ESTÁ LA MAGIA: Ordenamos la lista por fecha (más reciente primero)
+            noticias.sort(key=lambda x: x['fecha_obj'], reverse=True)
+            
         return noticias
     except:
         return []
@@ -87,33 +140,56 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # --- CUERPO PRINCIPAL (PESTAÑAS) ---
-# SE AGREGA "DOMINACIÓN VISUAL" AL FINAL
 tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia, tab_territorio, tab_ia, tab_mapa = st.tabs([
     "🚨 ALERTAS", "📰 MEDIOS", "🗳️ POLÍTICA", "🐦 TWITTER", "📝 CLIPPING", "🧠 ESTRATEGIA", "🗺️ TERRITORIO", "🦎 DISCURSO POLIMÓRFICO", "📍 DOMINACIÓN VISUAL"
 ])
 
-# 1. PESTAÑA ALERTAS URGENTES
+# 1. PESTAÑA ALERTAS URGENTES (MODIFICADA CON TICKER)
 with tab_alertas:
-    st.header("🚨 Radar de Crisis (Último Momento)")
+    # --- TICKER DE ÚLTIMO MOMENTO (SLIDER) ---
+    st.header("🚨 Radar de Crisis (En Vivo)")
+    
+    # Buscamos noticias generales de Independiente de las últimas 24hs para el Ticker
+    noticias_ticker = buscar_noticias_rss("Independiente Avellaneda")
+    
+    if noticias_ticker:
+        # Tomamos los 5 títulos más recientes para el slider
+        textos_ticker = [f"🔴 {n['titulo']}" for n in noticias_ticker[:5]]
+        string_ticker = "   |   ".join(textos_ticker)
+        
+        # Inyectamos el HTML del ticker animado
+        st.markdown(f"""
+        <div class="ticker-wrap">
+            <div class="ticker">
+                <div class="ticker-item">{string_ticker}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- CUERPO DE NOTICIAS DE CRISIS ---
     col1, col2 = st.columns([3, 1])
     with col1:
-        # Buscamos palabras peligrosas
-        palabras_clave = "Independiente AND (Inhibición OR Embargo OR FIFA OR TAS OR Renuncia OR Escándalo OR Barras OR Incidentes)"
+        st.subheader("🔥 Alertas Críticas (Filtradas)")
+        # Buscamos palabras peligrosas ESPECÍFICAS
+        palabras_clave = "Independiente AND (Inhibición OR Embargo OR FIFA OR TAS OR Renuncia OR Escándalo OR Barras OR Incidentes OR Deuda OR Vaccari)"
         noticias_urgentes = buscar_noticias_rss(palabras_clave)
         
         if noticias_urgentes:
-            for n in noticias_urgentes:
+            for n in noticias_urgentes[:10]: # Mostramos las 10 más nuevas
                 with st.container(border=True):
-                    st.markdown(f"#### 🔴 {n['titulo']}")
-                    st.caption(f"{n['fecha']} | Fuente: {n['fuente']}")
-                    st.markdown(f"[Leer Noticia]({n['link']})")
+                    col_ico, col_txt = st.columns([0.1, 0.9])
+                    with col_ico:
+                        st.markdown("### 📢")
+                    with col_txt:
+                        st.markdown(f"**[{n['titulo']}]({n['link']})**")
+                        st.caption(f"🕒 {n['fecha']} | 📰 {n['fuente']}")
         else:
-            st.success("✅ No se detectan alertas graves en las últimas horas.")
+            st.success("✅ No se detectan alertas graves en las últimas 24 horas.")
             
     with col2:
-        st.warning("⚠️ ESTADO DE ALERTA")
-        st.metric(label="Nivel de Riesgo", value="MEDIO", delta="Inhibiciones")
-        st.info("Monitoreando: FIFA, TAS, Juicios, Seguridad.")
+        st.warning("⚠️ PANEL DE CONTROL")
+        st.metric(label="Noticias Hoy", value=len(noticias_ticker) if noticias_ticker else 0)
+        st.info("El sistema escanea noticias publicadas hace menos de 24hs.")
 
 # 2. PESTAÑA MEDIOS
 with tab_medios:
@@ -135,7 +211,6 @@ with tab_medios:
             with st.expander(f"{n['titulo']}"):
                 st.write(f"Fuente: {n['fuente']}")
                 st.markdown(f"**[🔗 LEER NOTA COMPLETA]({n['link']})**")
-                # Botón simple de copiado manual
                 st.code(f"{n['titulo']} - {n['link']}")
     else:
         st.info("No se encontraron noticias recientes en esta categoría.")
