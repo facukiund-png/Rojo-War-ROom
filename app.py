@@ -7,6 +7,7 @@ import urllib.parse
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import random
+import time
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -84,8 +85,9 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # --- CUERPO PRINCIPAL (PESTAÑAS) ---
-tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia, tab_territorio = st.tabs([
-    "🚨 ALERTAS", "📰 MEDIOS", "🗳️ POLÍTICA", "🐦 TWITTER", "📝 CLIPPING", "🧠 ESTRATEGIA", "🗺️ TERRITORIO"
+# CAMBIO REALIZADO AQUÍ: "🦎 DISCURSO POLIMÓRFICO" en lugar de IA
+tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia, tab_territorio, tab_ia = st.tabs([
+    "🚨 ALERTAS", "📰 MEDIOS", "🗳️ POLÍTICA", "🐦 TWITTER", "📝 CLIPPING", "🧠 ESTRATEGIA", "🗺️ TERRITORIO", "🦎 DISCURSO POLIMÓRFICO"
 ])
 
 # 1. PESTAÑA ALERTAS URGENTES
@@ -247,6 +249,62 @@ with tab_territorio:
         ax.imshow(wordcloud, interpolation='bilinear')
         ax.axis("off")
         st.pyplot(fig)
+
+# 8. PESTAÑA DISCURSO POLIMÓRFICO
+with tab_ia:
+    st.header("🦎 Discurso Polimórfico")
+    st.info("Herramienta de adaptación de tono estratégico.")
+
+    col_ia1, col_ia2 = st.columns([1, 1])
+
+    with col_ia1:
+        st.subheader("1. Configuración")
+        # El input del usuario
+        idea_base = st.text_area("Escribe la idea central (cruda):", "Tenemos que sacar a los que le hacen mal al club y arreglar la cancha", height=100)
+        
+        # El selector de público
+        target = st.select_slider(
+            "Seleccionar Público Objetivo:", 
+            options=["Socios Vitalicios (Formal)", "Prensa (Técnico)", "Redes (Viral)", "Barra/Tablón (Agresivo)"]
+        )
+
+        generar = st.button("✨ Procesar Estrategia")
+
+    with col_ia2:
+        st.subheader("2. Resultado Generado")
+        
+        if generar:
+            with st.spinner("Analizando tono y reescribiendo..."):
+                time.sleep(2) # Simulamos que piensa
+                
+                # Lógica de Transformación de Texto
+                resultado = ""
+                
+                if target == "Socios Vitalicios (Formal)":
+                    resultado = f"Estimada familia Roja:\n\nLa historia de nuestra institución nos exige responsabilidad y memoria. {idea_base}. Es un imperativo moral recuperar la gloria y la infraestructura que ustedes, con tanto esfuerzo, ayudaron a construir. Volvamos a las raíces."
+                
+                elif target == "Prensa (Técnico)":
+                    resultado = f"DECLARACIÓN OFICIAL:\n\nDesde la agrupación sostenemos que {idea_base}. Esto es parte de un plan integral de saneamiento basado en los artículos 45 y 46 del estatuto vigente. Los números avalan nuestra postura de renovación inmediata."
+                
+                elif target == "Redes (Viral)":
+                    resultado = f"Basta de mentiras. 🛑\n\n{idea_base}. \n\nSi estás de acuerdo dale RT. Se les terminó la joda a los de siempre. \n\n#TodoRojo 👹 #RevolucionIndependiente"
+                
+                else: # Barra / Agresivo
+                    resultado = f"Escuchen bien todos:\n\n{idea_base}.\n\nAl que no le guste, que se vaya. El club es de los hinchas, no de los de traje. ¡Aca se viene a alentar y a ganar! ¡VAMOS ROJO CARAJO!"
+
+                # Mostrar el resultado
+                st.success("✅ Mensaje Adaptado Exitosamente")
+                st.code(resultado, language="text")
+                
+                st.caption("Copia el texto de arriba y envíalo.")
+
+    st.divider()
+    st.markdown("### 💡 Tips de uso:")
+    st.markdown("""
+    * Usar **Vitalicios** para mails y cartas formales.
+    * Usar **Barra** para arengas de cancha o reuniones tensas.
+    * Usar **Redes** para Twitter e Instagram.
+    """)
 
 # Footer
 st.markdown("---")
