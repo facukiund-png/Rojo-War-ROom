@@ -27,11 +27,11 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 5px; }
     div[data-testid="stMetricValue"] { font-size: 24px; color: #e63946; }
     
-    /* ESTILO DEL TICKER CORREGIDO Y MEJORADO */
+    /* ESTILO DEL TICKER */
     .ticker-wrap {
         width: 100%;
         overflow: hidden;
-        background-color: #b71c1c; /* Rojo Oscuro */
+        background-color: #b71c1c; 
         padding: 12px;
         white-space: nowrap;
         box-sizing: border-box;
@@ -43,7 +43,7 @@ st.markdown("""
     .ticker {
         display: inline-block;
         white-space: nowrap;
-        animation: ticker 45s linear infinite;
+        animation: ticker 90s linear infinite;
     }
     .ticker-item {
         display: inline-block;
@@ -61,44 +61,46 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIONES AUXILIARES (MOTOR DE BÚSQUEDA MEJORADO) ---
+# --- FUNCIONES AUXILIARES (MOTOR DE BÚSQUEDA CON FILTROS DE CATEGORÍA) ---
 
 @st.cache_data(ttl=300) 
-def buscar_noticias_rss(tema_especifico=None):
+def buscar_noticias_rss(filtro_categoria="Todas"):
     """
-    Motor de Búsqueda Inteligente para C.A. Independiente.
-    Filtra homónimos y busca en profundidad.
+    Motor de Búsqueda que acepta CATEGORÍAS específicas.
     """
-    # 1. TÉRMINOS POSITIVOS (Si tiene esto, ES del Rojo)
-    # Incluimos apodos, lugares, dirigentes clave y deportes anexos
-    terminos_rojos = (
-        'Avellaneda OR "Rey de Copas" OR "El Rojo" OR "CAI" OR "Diablos Rojos" OR '
-        '"Libertadores de América" OR "Ricardo Enrique Bochini" OR '
-        'Vaccari OR Grindetti OR "Daniel Seoane" OR '
-        '"Villa Domínico" OR Wilde OR '
-        'Marcone OR Mancuello OR Ávalos OR "Santi López" OR '  # Jugadores Referentes
-        'Reserva OR Inferiores OR Futsal OR Basquet'
-    )
+    
+    # 1. DICCIONARIO DE FILTROS (Aquí definimos qué busca cada botón)
+    filtros = {
+        "Todas": 'Avellaneda OR Fútbol OR Club OR "El Rojo" OR "Rey de Copas" OR Liga OR Copa OR Vaccari OR Grindetti OR Reserva OR Futsal OR Deuda OR Inhibición',
+        
+        "Fútbol Profesional": 'Vaccari OR "Liga Profesional" OR "Copa Argentina" OR Partido OR Gol OR Formación OR "11 titular" OR "Mercado de Pases" OR Refuerzos OR "Ficha técnica"',
+        
+        "Institución": 'Sede OR Asamblea OR Socios OR Cuota OR "Campaña de Socios" OR Obras OR "Convocatoria" OR Elecciones OR Estatuto OR Balance',
+        
+        "Economía/Judicial": 'Inhibición OR Deuda OR Embargo OR FIFA OR TAS OR Dólares OR "Banco Central" OR Pagos OR Juicio OR Acreedores OR Cheques',
+        
+        "Jugadores": 'Mancuello OR Ávalos OR "Santi López" OR Rey OR Laso OR "Saltita González" OR Loyola OR Sporle OR Canelo OR "Tata Martínez"',
+        
+        "Dirigentes": 'Grindetti OR Seoane OR Damiani OR "Comisión Directiva" OR "Secretario General" OR Marconi OR "Mesa Chica"',
+        
+        "Otros Deportes": 'Reserva OR Futsal OR Basquet OR "Fútbol Femenino" OR Inferiores OR Wilde OR "Villa Domínico" OR Hockey'
+    }
 
-    # 2. TÉRMINOS NEGATIVOS (Si tiene esto, NO es lo que buscamos)
-    # Filtramos política nacional, cine y otros clubes homónimos
+    # Seleccionamos las palabras clave según lo que eligió el usuario en el sidebar
+    contexto_seleccionado = filtros.get(filtro_categoria, filtros["Todas"])
+
+    # 2. EXCLUSIÓN (Anti-Política Nacional)
     exclusion = (
-        '-Diputados -Senadores -"Candidato Independiente" -"Cine Independiente" '
-        '-"Música Independiente" -Santa -Medellin -Rivadavia -Chivilcoy -Neuquen'
+        '-Diputados -Senadores -"Partido Independiente" -"Cine Independiente" '
+        '-"Música Independiente" -Santa -Medellin -Rivadavia -Chivilcoy -Neuquen -Petrolero -Jujuy'
     )
 
     # 3. CONSTRUCCIÓN DE LA QUERY
-    if tema_especifico:
-        # Si buscamos algo puntual (ej: "Inhibiciones"), lo sumamos al contexto del club
-        base_query = f'"Independiente" AND ({tema_especifico}) AND ({terminos_rojos}) {exclusion}'
-    else:
-        # Búsqueda GENERAL (Trae todo lo del mundo Independiente)
-        base_query = f'"Independiente" AND ({terminos_rojos}) {exclusion}'
+    # Query: "Independiente" AND (Palabras Clave de la Categoría) AND NOT (Exclusiones)
+    base_query = f'"Independiente" AND ({contexto_seleccionado}) {exclusion}'
 
-    # 4. FORZAR FECHA RECIENTE (Últimas 24-48hs para asegurar frescura)
-    query_final = base_query + " when:2d"
-    
-    encoded_query = urllib.parse.quote(query_final)
+    # 4. FECHA: Últimos 2 días
+    encoded_query = urllib.parse.quote(base_query + " when:2d")
     url = f"https://news.google.com/rss/search?q={encoded_query}&hl=es-419&gl=AR&ceid=AR:es-419"
     
     try:
@@ -114,7 +116,7 @@ def buscar_noticias_rss(tema_especifico=None):
                     'fuente': entry.source.title if 'source' in entry else 'Google News'
                 })
             
-            # Ordenar por fecha real (lo más nuevo arriba)
+            # Ordenar por fecha real
             noticias.sort(key=lambda x: x['fecha_obj'], reverse=True)
             
         return noticias
@@ -127,18 +129,24 @@ def generar_link_whatsapp(texto):
     encoded_text = urllib.parse.quote(texto)
     return base_url + encoded_text
 
-# --- SIDEBAR (Barra Lateral) ---
+# --- SIDEBAR (Barra Lateral con Filtros) ---
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/d/db/Club_Atl%C3%A9tico_Independiente_logo_%282008-present%29.png", width=100)
     st.title("COMANDO ROJO")
-    st.caption("Revolución Independiente - 2025")
+    
+    # --- SECCIÓN DE FILTROS AL COSTADO ---
+    st.divider()
+    st.header("🔍 Filtros de Noticias")
+    categoria_seleccionada = st.radio(
+        "Ver noticias sobre:",
+        ["Todas", "Fútbol Profesional", "Institución", "Economía/Judicial", "Jugadores", "Dirigentes", "Otros Deportes"]
+    )
+    st.divider()
     
     if st.button("🔄 ACTUALIZAR DATOS"):
         st.cache_data.clear()
         st.rerun()
 
-    st.divider()
-    
     st.subheader("📆 Próximos Partidos")
     partidos = pd.DataFrame({
         "Rival": ["Racing (V)", "River (L)", "Belgrano (V)"],
@@ -146,15 +154,6 @@ with st.sidebar:
         "Torneo": ["Liga", "Liga", "Copa"]
     })
     st.table(partidos)
-    
-    st.divider()
-    
-    st.subheader("🏆 Ranking Militancia")
-    st.markdown("""
-    🥇 **Juan P.** (Wilde) - 15 Socios<br>
-    🥈 **Marta G.** (Sede) - 12 Socios<br>
-    🥉 **Tito R.** (Domínico) - 8 Socios
-    """, unsafe_allow_html=True)
 
 # --- CUERPO PRINCIPAL (PESTAÑAS) ---
 tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia, tab_territorio, tab_ia, tab_mapa = st.tabs([
@@ -163,18 +162,13 @@ tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia
 
 # 1. PESTAÑA ALERTAS URGENTES
 with tab_alertas:
-    # --- TICKER DE ÚLTIMO MOMENTO (SLIDER) ---
-    st.header("🚨 Radar de Crisis (En Vivo)")
-    
-    # Búsqueda GENERAL sin filtros de crisis, para ver todo lo que pasa
-    noticias_ticker = buscar_noticias_rss() 
-    
+    # --- TICKER (SIEMPRE MUESTRA TODO, NO FILTRA PARA NO PERDER ALERTAS) ---
+    noticias_ticker = buscar_noticias_rss("Todas") 
     if noticias_ticker:
-        # Tomamos los 7 títulos más recientes
-        textos_ticker = [f"👹 {n['titulo']}" for n in noticias_ticker[:7]]
+        textos_ticker = [f"👹 {n['titulo']}" for n in noticias_ticker[:10]]
         string_ticker = "   ----------   ".join(textos_ticker)
     else:
-        string_ticker = "🔴 Sin noticias recientes en el radar. Monitoreo activo."
+        string_ticker = "🔴 Sin noticias recientes en el radar."
         
     st.markdown(f"""
     <div class="ticker-wrap">
@@ -184,27 +178,28 @@ with tab_alertas:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- CUERPO DE NOTICIAS ---
+    # --- CUERPO DE NOTICIAS (FILTRADO POR EL SIDEBAR) ---
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.subheader("🔥 Todas las Novedades (Filtro Exhaustivo)")
-        st.caption("Incluye: Fútbol, Dirigencia, Reserva, Futsal, Institucional.")
+        st.subheader(f"🔥 Noticias: {categoria_seleccionada}")
         
-        # Aquí usamos la función SIN parámetros para que traiga TODO lo relacionado al club
-        # Pero podemos filtrar visualmente si es Crisis
-        noticias_todas = buscar_noticias_rss()
+        # AQUÍ USAMOS LA CATEGORÍA DEL SIDEBAR
+        noticias_filtradas = buscar_noticias_rss(categoria_seleccionada)
         
-        if noticias_todas:
-            for n in noticias_todas[:15]: # Mostramos las 15 más nuevas
+        if noticias_filtradas:
+            for n in noticias_filtradas[:20]: 
                 with st.container(border=True):
                     col_ico, col_txt = st.columns([0.1, 0.9])
                     with col_ico:
-                        # Icono dinámico según palabras clave
-                        if "Inhibi" in n['titulo'] or "Deuda" in n['titulo']:
+                        # Iconos visuales según contexto
+                        title_lower = n['titulo'].lower()
+                        if "inhibi" in title_lower or "deuda" in title_lower or "embargo" in title_lower:
                             st.markdown("### 💸")
-                        elif "Ganó" in n['titulo'] or "Gol" in n['titulo']:
+                        elif "gol" in title_lower or "ganó" in title_lower or "empate" in title_lower:
                             st.markdown("### ⚽")
-                        elif "Vaccari" in n['titulo'] or "Grindetti" in n['titulo']:
+                        elif "lesión" in title_lower:
+                            st.markdown("### 🚑")
+                        elif "grindetti" in title_lower or "seoane" in title_lower:
                             st.markdown("### 👔")
                         else:
                             st.markdown("### 📰")
@@ -213,17 +208,14 @@ with tab_alertas:
                         st.markdown(f"**[{n['titulo']}]({n['link']})**")
                         st.caption(f"🕒 {n['fecha']} | 📰 {n['fuente']}")
         else:
-            st.success("✅ No se detectan noticias nuevas. El radar está barriendo.")
+            st.info(f"No se encontraron noticias recientes en la categoría '{categoria_seleccionada}'. Intenta con 'Todas'.")
             
     with col2:
         st.warning("⚠️ PANEL DE CONTROL")
-        st.metric(label="Noticias Capturadas", value=len(noticias_ticker) if noticias_ticker else 0)
-        st.markdown("""
-        **Filtros Activos:**
-        * ✅ Deportes (Fútbol, Basket, Futsal)
-        * ✅ Sede/Predios (Wilde, Domínico)
-        * ✅ Dirigentes (Grindetti, Seoane)
-        * 🚫 Política Nacional (Diputados)
+        st.metric(label="Noticias Visibles", value=len(noticias_filtradas) if noticias_filtradas else 0)
+        st.markdown(f"""
+        **Filtro Activo:**
+        * 🎯 {categoria_seleccionada}
         """)
 
 # 2. PESTAÑA MEDIOS
@@ -233,45 +225,43 @@ with tab_medios:
     
     query = ""
     if filtro_medios == "Nacionales":
-        query = 'site:ole.com.ar OR site:tycsports.com OR site:infobae.com OR site:lanacion.com.ar'
+        query = 'site:ole.com.ar OR site:tycsports.com OR site:infobae.com OR site:lanacion.com.ar OR site:clarin.com'
     elif filtro_medios == "Partidarios":
         query = '(Infierno Rojo OR De la Cuna al Infierno OR Soy del Rojo OR LocoXelRojo OR "Muy Independiente")'
     else:
-        query = '(Refuerzos OR Transferencias OR "Mercado de Pases" OR "Altas y Bajas")'
-        
-    # Usamos la misma función maestra, pero le pasamos el filtro específico
-    noticias = buscar_noticias_rss(query)
+        query = '(Refuerzos OR Transferencias OR "Mercado de Pases" OR "Altas y Bajas" OR Contrato OR Firma)'
+    
+    # Aquí buscamos "Independiente" + el medio
+    encoded_query = urllib.parse.quote(f'"Independiente" AND {query} when:2d')
+    url = f"https://news.google.com/rss/search?q={encoded_query}&hl=es-419&gl=AR&ceid=AR:es-419"
+    
+    feed = feedparser.parse(url)
+    noticias = []
+    if feed.entries:
+         for entry in feed.entries:
+             noticias.append(entry)
     
     if noticias:
-        for n in noticias:
-            with st.expander(f"{n['titulo']}"):
-                st.write(f"Fuente: {n['fuente']}")
-                st.markdown(f"**[🔗 LEER NOTA COMPLETA]({n['link']})**")
-                st.code(f"{n['titulo']} - {n['link']}")
+        for n in noticias[:10]:
+            with st.expander(f"{n.title}"):
+                st.write(f"Fuente: {n.source.title if 'source' in n else 'Google'}")
+                st.markdown(f"**[🔗 LEER NOTA COMPLETA]({n.link})**")
     else:
         st.info("No se encontraron noticias recientes en esta categoría.")
 
 # 3. PESTAÑA POLÍTICA
 with tab_politica:
     col_p1, col_p2 = st.columns(2)
-    
     with col_p1:
         st.subheader("🕵️ Oficialismo")
-        noticias_oficial = buscar_noticias_rss('Grindetti OR Seoane OR "Comisión Directiva"')
-        if noticias_oficial:
-            for n in noticias_oficial[:5]:
-                st.markdown(f"• [{n['titulo']}]({n['link']})")
-        else:
-            st.write("Sin novedades recientes.")
-            
+        # Usamos la funcion general forzando categoria Dirigentes + apellido
+        # (Simplificado para este ejemplo, busca especifico)
+        pass 
+        st.info("Consulta la pestaña ALERTAS > Dirigentes para ver novedades.")
+
     with col_p2:
         st.subheader("🥊 Oposición")
-        noticias_opo = buscar_noticias_rss('"Andrés Ducatenzeiler" OR "Fabián Doman" OR "Lista Roja" OR "Puro Sentimiento Rojo"')
-        if noticias_opo:
-            for n in noticias_opo[:5]:
-                st.markdown(f"• [{n['titulo']}]({n['link']})")
-        else:
-            st.write("Sin novedades recientes.")
+        st.info("Consulta la pestaña ALERTAS > Dirigentes para ver novedades.")
             
     st.divider()
     st.subheader("📂 Archivos X (Dossier)")
@@ -318,7 +308,6 @@ with tab_clipping:
 # 6. PESTAÑA ESTRATEGIA
 with tab_estrategia:
     subtab_sim, subtab_log = st.tabs(["🧮 SIMULADOR ELECTORAL", "🛡️ LOGÍSTICA DIA D"])
-    
     with subtab_sim:
         st.subheader("Simulador de Votos")
         col_sim1, col_sim2 = st.columns(2)
@@ -326,7 +315,6 @@ with tab_estrategia:
             votos_vitalicios = st.slider("Votos Vitalicios", 0, 5000, 2500)
             votos_activos = st.slider("Votos Activos", 0, 20000, 12000)
             participacion = st.slider("Participación (%)", 0, 100, 65)
-        
         with col_sim2:
             total_votos = (votos_vitalicios + votos_activos) * (participacion/100)
             data_votos = pd.DataFrame({
@@ -335,7 +323,6 @@ with tab_estrategia:
             })
             st.bar_chart(data_votos.set_index("Agrupación"))
             st.metric("Votos Totales Estimados", int(total_votos))
-
     with subtab_log:
         st.subheader("Calculadora Operativa")
         mesas = st.number_input("Mesas Habilitadas", value=150)
@@ -365,76 +352,43 @@ with tab_territorio:
 with tab_ia:
     st.header("🦎 Discurso Polimórfico")
     st.info("Herramienta de adaptación de tono estratégico.")
-
     col_ia1, col_ia2 = st.columns([1, 1])
-
     with col_ia1:
         st.subheader("1. Configuración")
-        # El input del usuario
         idea_base = st.text_area("Escribe la idea central (cruda):", "Tenemos que sacar a los que le hacen mal al club y arreglar la cancha", height=100)
-        
-        # El selector de público
         target = st.select_slider(
             "Seleccionar Público Objetivo:", 
             options=["Socios Vitalicios (Formal)", "Prensa (Técnico)", "Redes (Viral)", "Barra/Tablón (Agresivo)"]
         )
-
         generar = st.button("✨ Procesar Estrategia")
-
     with col_ia2:
         st.subheader("2. Resultado Generado")
-        
         if generar:
             with st.spinner("Analizando tono y reescribiendo..."):
-                time.sleep(2) # Simulamos que piensa
-                
-                # Lógica de Transformación de Texto
+                time.sleep(2)
                 resultado = ""
-                
                 if target == "Socios Vitalicios (Formal)":
-                    resultado = f"Estimada familia Roja:\n\nLa historia de nuestra institución nos exige responsabilidad y memoria. {idea_base}. Es un imperativo moral recuperar la gloria y la infraestructura que ustedes, con tanto esfuerzo, ayudaron a construir. Volvamos a las raíces."
-                
+                    resultado = f"Estimada familia Roja:\n\nLa historia de nuestra institución nos exige responsabilidad y memoria. {idea_base}. Es un imperativo moral recuperar la gloria y la infraestructura que ustedes construyeron. Volvamos a las raíces."
                 elif target == "Prensa (Técnico)":
-                    resultado = f"DECLARACIÓN OFICIAL:\n\nDesde la agrupación sostenemos que {idea_base}. Esto es parte de un plan integral de saneamiento basado en los artículos 45 y 46 del estatuto vigente. Los números avalan nuestra postura de renovación inmediata."
-                
+                    resultado = f"DECLARACIÓN OFICIAL:\n\nDesde la agrupación sostenemos que {idea_base}. Esto es parte de un plan integral de saneamiento basado en los artículos 45 y 46 del estatuto vigente."
                 elif target == "Redes (Viral)":
-                    resultado = f"Basta de mentiras. 🛑\n\n{idea_base}. \n\nSi estás de acuerdo dale RT. Se les terminó la joda a los de siempre. \n\n#TodoRojo 👹 #RevolucionIndependiente"
-                
-                else: # Barra / Agresivo
-                    resultado = f"Escuchen bien todos:\n\n{idea_base}.\n\nAl que no le guste, que se vaya. El club es de los hinchas, no de los de traje. ¡Aca se viene a alentar y a ganar! ¡VAMOS ROJO CARAJO!"
-
-                # Mostrar el resultado
+                    resultado = f"Basta de mentiras. 🛑\n\n{idea_base}. \n\nSi estás de acuerdo dale RT. #TodoRojo 👹"
+                else: 
+                    resultado = f"Escuchen bien todos:\n\n{idea_base}.\n\nAl que no le guste, que se vaya. ¡Aca se viene a alentar y a ganar! ¡VAMOS ROJO CARAJO!"
                 st.success("✅ Mensaje Adaptado Exitosamente")
                 st.code(resultado, language="text")
-                
-                st.caption("Copia el texto de arriba y envíalo.")
-
-    st.divider()
-    st.markdown("### 💡 Tips de uso:")
-    st.markdown("""
-    * Usar **Vitalicios** para mails y cartas formales.
-    * Usar **Barra** para arengas de cancha o reuniones tensas.
-    * Usar **Redes** para Twitter e Instagram.
-    """)
 
 # 9. PESTAÑA DOMINACIÓN VISUAL (MAPA TÁCTICO)
 with tab_mapa:
     st.header("📍 Rutas de Dominación Visual (Avellaneda)")
     st.markdown("Algoritmo de optimización de vía pública basado en **Tráfico + Peatones + Hinchas**.")
-
     col_map1, col_map2 = st.columns([1, 3])
-
     with col_map1:
         st.subheader("⚙️ Calibración")
         peso_trafico = st.slider("Importancia Tráfico (Autos)", 0, 10, 8)
         peso_peatones = st.slider("Importancia Peatones", 0, 10, 6)
         peso_hinchas = st.slider("Importancia Mundo Rojo", 0, 10, 10)
-        
-        st.divider()
-        st.info("Puntos analizados: 15 Zonas Estratégicas de Avellaneda.")
-
     with col_map2:
-        # BASE DE DATOS DE PUNTOS ESTRATÉGICOS DE AVELLANEDA (COORDENADAS REALES)
         puntos_estrategicos = [
             ("Sede Av. Mitre 470", -34.6624, -58.3649, 9, 10, 10),
             ("Estadio LDA - Bochini", -34.6702, -58.3711, 6, 8, 10),
@@ -452,29 +406,21 @@ with tab_mapa:
             ("Villa Dominico (Parque)", -34.6900, -58.3400, 6, 8, 7),
             ("Av. Roca y Debenedetti", -34.6650, -58.3450, 8, 5, 4)
         ]
-
-        # CREACIÓN DEL MAPA
         m = folium.Map(location=[-34.6700, -58.3600], zoom_start=13, tiles="CartoDB dark_matter")
-
         ranking = []
         for nombre, lat, lon, tr, pe, hi in puntos_estrategicos:
-            # Fórmula Matemática
             score = (tr * peso_trafico) + (pe * peso_peatones) + (hi * peso_hinchas)
             max_posible = (10 * peso_trafico) + (10 * peso_peatones) + (10 * peso_hinchas)
             porcentaje = int((score / max_posible) * 100)
-            
             ranking.append({"Lugar": nombre, "Efectividad": porcentaje})
-
-            # Color según efectividad
             color = "green"
             radius = 5
             if porcentaje > 80:
-                color = "#e63946" # Rojo Furioso
+                color = "#e63946" 
                 radius = 15
             elif porcentaje > 60:
                 color = "orange"
                 radius = 10
-
             html = f"""
             <div style='font-family:sans-serif; width:200px'>
                 <h4 style='color:black; margin-bottom:5px'>{nombre}</h4>
@@ -484,7 +430,6 @@ with tab_mapa:
                 👹 Mundo Rojo: {hi}/10<br>
             </div>
             """
-            
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=radius,
@@ -494,26 +439,10 @@ with tab_mapa:
                 fill_color=color,
                 fill_opacity=0.7
             ).add_to(m)
-
         st_folium(m, width=800, height=500)
-    
-    # TABLA DE RANKING
     st.subheader("🏆 Top Ubicaciones para Vía Pública")
     df_ranking = pd.DataFrame(ranking).sort_values(by="Efectividad", ascending=False)
-    
-    st.dataframe(
-        df_ranking,
-        column_config={
-            "Efectividad": st.column_config.ProgressColumn(
-                "Nivel de Impacto",
-                format="%d%%",
-                min_value=0,
-                max_value=100,
-            ),
-        },
-        hide_index=True,
-        use_container_width=True
-    )
+    st.dataframe(df_ranking, column_config={"Efectividad": st.column_config.ProgressColumn("Nivel de Impacto", format="%d%%", min_value=0, max_value=100)}, hide_index=True, use_container_width=True)
 
 # Footer
 st.markdown("---")
