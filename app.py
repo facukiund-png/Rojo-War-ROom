@@ -1,19 +1,3 @@
-¡Entendido! Aquí tienes el archivo app.py definitivo y completo.
-
-¿Qué cambios incluye esta versión?
-
-Ticker de Noticias (Estilo TV): Una barra roja animada al principio que muestra los últimos 5 títulos.
-
-Filtro de 24 Horas: Obliga a Google a mostrar solo noticias de hoy (when:1d).
-
-Orden Cronológico Real: El código ahora ordena internamente las noticias para que la más reciente (ej: "hace 10 minutos") aparezca siempre primero.
-
-Mapa de Dominación: Se mantiene tu última función de mapas.
-
-Copia todo el bloque, borra lo anterior y pega esto:
-
-Python
-
 import streamlit as st
 import pandas as pd
 import feedparser
