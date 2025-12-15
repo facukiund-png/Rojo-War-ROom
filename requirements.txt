@@ -7,3 +7,5 @@ lxml
 matplotlib
 wordcloud
 numpy
+folium
+streamlit-folium
