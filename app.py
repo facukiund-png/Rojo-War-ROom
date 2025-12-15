@@ -4,14 +4,12 @@ import feedparser
 import datetime
 import numpy as np
 import urllib.parse
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
 import random
 import time
 import folium
 from streamlit_folium import st_folium
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="ROJO WAR ROOM",
     page_icon="👹",
@@ -19,14 +17,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- ESTILOS CSS ---
+# --- 2. ESTILOS CSS (TICKER, TARJETAS, PANELES) ---
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; font-weight: bold; }
     .stButton>button { width: 100%; border-radius: 5px; }
     div[data-testid="stMetricValue"] { font-size: 24px; color: #e63946; }
     
-    /* TICKER */
+    /* TICKER (CINTA DE NOTICIAS) */
     .ticker-wrap {
         width: 100%;
         background-color: #b71c1c; 
@@ -51,7 +49,7 @@ st.markdown("""
         100% { transform: translateX(-100%); }
     }
     
-    /* PANELES */
+    /* PANEL DERECHO DE FILTROS */
     .right-panel {
         background-color: #f8f9fa;
         padding: 20px;
@@ -61,13 +59,13 @@ st.markdown("""
         height: 100%;
     }
     
-    /* TARJETAS DOMO DE HIERRO */
+    /* TARJETAS DE DEFENSA (DOMO) */
     .defense-card { 
         background-color: #262730; 
-        padding: 20px; 
+        padding: 15px; 
         border-radius: 10px; 
         border-left: 5px solid #e63946; 
-        margin-bottom: 15px; 
+        margin-bottom: 10px; 
         color: white;
     }
     
@@ -79,20 +77,26 @@ st.markdown("""
         text-align: center;
         font-weight: bold;
         margin-bottom: 10px;
+        border: 1px solid #ddd;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- MOTOR DE BÚSQUEDA (V6 - INTACTO) ---
+# --- 3. MOTOR DE BÚSQUEDA (V6 - BLINDADO ANTI-BASURA) ---
 @st.cache_data(ttl=60, show_spinner=False)
 def buscar_noticias_rss(categoria="Todas", timestamp_force=0):
+    
+    # LISTA NEGRA (Exclusión de homónimos)
     exclusion = (
         '-Rivadavia -Mendoza -Chivilcoy -Neuquen -Petrolero -Jujuy -Tandil -Trelew -Oliva '
         '-"Del Valle" -Medellin -"Santa Fe" -Bogota -Ecuador -Bolivia -Spain -España '
         '-Diputados -Senadores -"Partido Independiente" -Cine -Música -Regional -Amateur -Federal '
         '-"Juventud Independiente" -Alicante -Siguatepeque -Panama'
     )
+    
+    # Contexto obligatorio para búsquedas generales
     contexto_rojo = '(Avellaneda OR "El Rojo" OR "Rey de Copas" OR "CAI" OR "Libertadores de América" OR "Diablos Rojos" OR Bochini)'
+
     queries = []
     
     if categoria == "Todas":
@@ -114,10 +118,11 @@ def buscar_noticias_rss(categoria="Todas", timestamp_force=0):
         queries = [
             f'"Independiente" AND (Inhibición OR Deuda OR Embargo OR FIFA OR TAS OR Dólares OR Banco OR Cheques OR Juicio) {exclusion}'
         ]
-    elif categoria == "Oficialismo": # Query especial para Tablero Político
-        queries = [f'"Independiente" AND (Grindetti OR Seoane OR "Néstor Grindetti" OR Oficialismo OR Gestión) {exclusion}']
-    elif categoria == "Oposicion": # Query especial para Tablero Político
-        queries = [f'"Independiente" AND (Doman OR Ducatenzeiler OR "Lista Roja" OR "Agrupación Independiente" OR Oposición) {exclusion}']
+    # Queries especiales para el Tablero Político
+    elif categoria == "Oficialismo_Query":
+        queries = [f'"Independiente" AND (Grindetti OR Seoane OR Damiani OR "Comisión Directiva") {exclusion}']
+    elif categoria == "Oposicion_Query":
+        queries = [f'"Independiente" AND (Doman OR Ducatenzeiler OR "Lista Roja" OR "Agrupación Independiente" OR "Puro Sentimiento Rojo") {exclusion}']
 
     noticias_totales = []
     links_vistos = set()
@@ -132,6 +137,7 @@ def buscar_noticias_rss(categoria="Todas", timestamp_force=0):
                 if entry.link not in links_vistos:
                     titulo = entry.title.lower()
                     if "rivadavia" in titulo or "del valle" in titulo or "juventud" in titulo: continue
+                    
                     noticias_totales.append({
                         'titulo': entry.title,
                         'link': entry.link,
@@ -142,7 +148,8 @@ def buscar_noticias_rss(categoria="Todas", timestamp_force=0):
                     links_vistos.add(entry.link)
         except: continue
 
-    if not noticias_totales and categoria == "Todas": # Backup solo para general
+    # Backup
+    if not noticias_totales and categoria == "Todas": 
         try:
             url_backup = "https://news.google.com/rss/search?q=%22Independiente+Avellaneda%22+when:1d&hl=es-419&gl=AR&ceid=AR:es-419"
             feed = feedparser.parse(url_backup)
@@ -159,29 +166,28 @@ def generar_link_whatsapp(texto):
     encoded_text = urllib.parse.quote(texto)
     return base_url + encoded_text
 
-# --- CABECERA ---
+# --- 4. CABECERA Y TICKER ---
 c_logo, c_title = st.columns([0.05, 0.95])
 with c_logo:
     st.image("https://upload.wikimedia.org/wikipedia/commons/d/db/Club_Atl%C3%A9tico_Independiente_logo_%282008-present%29.png", width=50)
 with c_title:
     st.markdown("### COMANDO ROJO | WAR ROOM")
 
-# --- TICKER ---
 noticias_ticker = buscar_noticias_rss("Todas", int(time.time()))
 if noticias_ticker:
     textos_ticker = [f"👹 {n['titulo']}" for n in noticias_ticker[:10]]
     string_ticker = "   •   ".join(textos_ticker)
 else:
-    string_ticker = "🔴 Inicializando sistemas..."
+    string_ticker = "🔴 Inicializando sistemas de inteligencia... Conectando con satélite..."
 
 st.markdown(f"""<div class="ticker-wrap"><div class="ticker-content">{string_ticker}</div></div>""", unsafe_allow_html=True)
 
-# --- TABS ---
+# --- 5. PESTAÑAS (TODAS FUNCIONALES) ---
 tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia, tab_territorio, tab_ia, tab_mapa, tab_defensa = st.tabs([
     "🚨 ALERTAS", "📰 MEDIOS", "🗳️ POLÍTICA", "🐦 TWITTER", "📝 CLIPPING", "🧠 ESTRATEGIA", "🗺️ TERRITORIO", "🦎 DISCURSO", "📍 DOMINACIÓN", "🛡️ DEFENSA"
 ])
 
-# 1. ALERTAS
+# --- TAB 1: ALERTAS (Noticias Generales) ---
 with tab_alertas:
     col_main, col_right = st.columns([0.75, 0.25])
     with col_right:
@@ -189,10 +195,10 @@ with tab_alertas:
         st.subheader("⚙️ Filtros")
         filtro_tema = st.radio("Ver noticias de:", ["Todas", "Fútbol Profesional", "Institución", "Economía"], key="filtro_alertas")
         st.divider()
-        if st.button("🔄 ACTUALIZAR AHORA", type="primary"):
+        if st.button("🔄 RECARGAR", type="primary"):
             st.cache_data.clear()
             st.rerun()
-        st.caption(f"Última carga: {datetime.datetime.now().strftime('%H:%M')}")
+        st.caption(f"Update: {datetime.datetime.now().strftime('%H:%M')}")
         st.markdown('</div>', unsafe_allow_html=True)
     with col_main:
         st.subheader(f"🔥 Últimas Novedades: {filtro_tema}")
@@ -205,14 +211,22 @@ with tab_alertas:
                         t = n['titulo'].lower()
                         if "inhibi" in t or "deuda" in t: st.write("💸")
                         elif "ganó" in t or "gol" in t: st.write("⚽")
+                        elif "grindetti" in t: st.write("👔")
                         else: st.write("📰")
                     with c2:
                         st.markdown(f"**[{n['titulo']}]({n['link']})**")
-                        st.caption(f"📰 {n['fuente']}")
+                        try:
+                            fecha_dt = datetime.datetime(*n['fecha_obj'][:6])
+                            ahora = datetime.datetime.now()
+                            diff = ahora - fecha_dt
+                            if diff.days == 0: hace = f"Hace {diff.seconds // 3600}h"
+                            else: hace = f"Hace {diff.days}d"
+                        except: hace = "Reciente"
+                        st.caption(f"🕒 {hace} | {n['fuente']}")
         else:
-            st.info("No se encontraron noticias recientes.")
+            st.info("No se encontraron noticias recientes. Intenta el botón 'Recargar'.")
 
-# 2. MEDIOS
+# --- TAB 2: MEDIOS ---
 with tab_medios:
     st.header("📰 Kiosco Digital")
     filtro_medios = st.radio("Fuente:", ["Nacionales", "Partidarios", "Mercado de Pases"], horizontal=True)
@@ -231,17 +245,16 @@ with tab_medios:
         else: st.info("Sin noticias recientes.")
     except: pass
 
-# 3. POLÍTICA (MEJORADA - AHORA TRAE NOTICIAS REALES)
+# --- TAB 3: POLÍTICA (REPARADO: Ahora busca noticias reales) ---
 with tab_politica:
     st.header("🗳️ Tablero Político en Vivo")
-    st.caption("Monitoreo automático de menciones de actores políticos del club.")
-    
     col_pol_of, col_pol_op = st.columns(2)
     
     with col_pol_of:
         st.markdown("### 🎩 Oficialismo")
-        st.markdown('<div class="pol-metric">Imagen Digital: 📉 Negativa</div>', unsafe_allow_html=True)
-        news_oficial = buscar_noticias_rss("Oficialismo")
+        st.markdown('<div class="pol-metric">Termómetro: 📉 Crítico</div>', unsafe_allow_html=True)
+        # Aquí usamos la función de búsqueda con la query específica de oficialismo
+        news_oficial = buscar_noticias_rss("Oficialismo_Query", int(time.time()))
         if news_oficial:
             for n in news_oficial[:5]:
                 st.markdown(f"• [{n['titulo']}]({n['link']})")
@@ -251,7 +264,8 @@ with tab_politica:
     with col_pol_op:
         st.markdown("### 🥊 Oposición")
         st.markdown('<div class="pol-metric">Actividad: 🟡 Media</div>', unsafe_allow_html=True)
-        news_opo = buscar_noticias_rss("Oposicion")
+        # Aquí buscamos oposición
+        news_opo = buscar_noticias_rss("Oposicion_Query", int(time.time()))
         if news_opo:
             for n in news_opo[:5]:
                 st.markdown(f"• [{n['titulo']}]({n['link']})")
@@ -262,45 +276,78 @@ with tab_politica:
     st.subheader("📂 Dossier de Candidatos")
     perfil = st.selectbox("Ver Perfil:", ["Néstor G. (Presidente)", "Hugo M. (Ex-Pres)", "Fabián D. (Ex-Pres)"])
     if perfil == "Néstor G. (Presidente)":
-        st.markdown("""
-        * **Estado:** Licencia en Lanús. Actividad baja en el club.
-        * **Puntos Débiles:** Ausencia, Inhibiciones, Resultados deportivos.
-        * **Estrategia sugerida:** Atacar por el lado de "Club acéfalo".
-        """)
+        with st.expander("Ver Ficha Técnica", expanded=True):
+            st.markdown("""
+            * **Estado:** Licencia en Lanús.
+            * **Fortaleza:** Vínculos políticos nacionales.
+            * **Debilidad:** Ausencia en el día a día.
+            * **Amenaza Electoral:** ALTA.
+            """)
 
-# 4. TWITTER
+# --- TAB 4: TWITTER ---
 with tab_twitter:
     st.header("🐦 Radar X")
     c1, c2 = st.columns(2)
     with c1: st.link_button("🔥 'Independiente' (En Vivo)", "https://twitter.com/search?q=Independiente&src=typed_query&f=live")
     with c2: st.link_button("🗳️ Menciones Candidato", "https://twitter.com/search?q=Gonzalo%20Marchese&src=typed_query&f=live")
 
-# 5. CLIPPING
+# --- TAB 5: CLIPPING ---
 with tab_clipping:
     st.header("📝 Generador WhatsApp")
     txt = st.text_area("Texto/Link:")
     if txt and st.button("Generar Link"):
         st.success(generar_link_whatsapp(f"*INFORME CAI*\n\n{txt}"))
 
-# 6. ESTRATEGIA
+# --- TAB 6: ESTRATEGIA (RESTAURADO) ---
 with tab_estrategia:
-    st.header("🧠 Estrategia")
-    st.success("Simulador activo (Datos protegidos).")
+    st.header("🧠 Simulador Electoral")
+    st.markdown("Proyección de votos basada en padrón estimado.")
+    
+    col_sim1, col_sim2 = st.columns(2)
+    with col_sim1:
+        votos_vitalicios = st.slider("Votos Vitalicios", 0, 5000, 2500)
+        votos_activos = st.slider("Votos Activos", 0, 20000, 12000)
+        participacion = st.slider("Participación (%)", 0, 100, 65)
+        
+    with col_sim2:
+        total_votos = (votos_vitalicios + votos_activos) * (participacion/100)
+        data_votos = pd.DataFrame({
+            "Agrupación": ["Oficialismo", "Revolución (Nosotros)", "Otras"],
+            "Votos": [total_votos * 0.35, total_votos * 0.45, total_votos * 0.20]
+        })
+        st.bar_chart(data_votos.set_index("Agrupación"))
+        st.metric("Votos Totales Estimados", int(total_votos))
 
-# 7. TERRITORIO
+# --- TAB 7: TERRITORIO ---
 with tab_territorio:
     st.header("🗺️ Territorio")
-    st.map(pd.DataFrame({'lat': [-34.6702], 'lon': [-58.3709]}))
+    st.info("Mapa de calor de socios (Simulación).")
+    data_mapa = pd.DataFrame({'lat': np.random.normal(-34.6702, 0.01, 100), 'lon': np.random.normal(-58.3709, 0.01, 100)})
+    st.map(data_mapa)
 
-# 8. DISCURSO
+# --- TAB 8: DISCURSO (RESTAURADO) ---
 with tab_ia:
     st.header("🦎 Discurso Polimórfico")
-    st.info("Sistema listo.")
+    col_ia1, col_ia2 = st.columns([1, 1])
+    with col_ia1:
+        idea_base = st.text_area("Idea central:", "Hay que sacar a los que le hacen mal al club", height=100)
+        target = st.select_slider("Público:", options=["Vitalicios", "Prensa", "Redes", "Barra"])
+        generar = st.button("✨ Procesar")
+    with col_ia2:
+        if generar:
+            with st.spinner("Reescribiendo..."):
+                time.sleep(1)
+                res = ""
+                if target == "Vitalicios": res = f"Estimada familia Roja: {idea_base}. Es un imperativo moral."
+                elif target == "Prensa": res = f"DECLARACIÓN: Sostenemos que {idea_base}."
+                elif target == "Redes": res = f"Basta de mentiras. 🛑 {idea_base}. #TodoRojo 👹"
+                else: res = f"Escuchen bien: {idea_base}. ¡VAMOS ROJO!"
+                st.code(res, language="text")
 
-# 9. DOMINACIÓN VISUAL (MEJORADA Y COMPLETA)
+# --- TAB 9: DOMINACIÓN VISUAL (RESTAURADO Y FUNCIONAL) ---
 with tab_mapa:
-    st.header("📍 Estrategia de Vía Pública")
-    st.markdown("Algoritmo de optimización para cartelería y mesas.")
+    st.header("📍 Rutas de Dominación Visual")
+    st.markdown("Algoritmo de optimización para cartelería.")
 
     c_map_controls, c_map_view = st.columns([1, 3])
 
@@ -309,56 +356,36 @@ with tab_mapa:
         w_trafico = st.slider("Peso Tráfico", 0, 10, 8)
         w_peaton = st.slider("Peso Peatones", 0, 10, 6)
         w_hinchas = st.slider("Peso Mundo Rojo", 0, 10, 10)
-        st.info("Ajusta los sliders para recalcular los puntos calientes.")
 
     with c_map_view:
-        # Puntos estratégicos con datos base
+        # Puntos estratégicos de Avellaneda
         puntos_base = [
             {"nombre": "Sede Av. Mitre", "lat": -34.6624, "lon": -58.3649, "tr": 9, "pe": 10, "hi": 10},
             {"nombre": "Estadio LDA", "lat": -34.6702, "lon": -58.3711, "tr": 6, "pe": 8, "hi": 10},
             {"nombre": "Alto Avellaneda", "lat": -34.6755, "lon": -58.3665, "tr": 9, "pe": 10, "hi": 4},
             {"nombre": "Estación Avellaneda", "lat": -34.6566, "lon": -58.3813, "tr": 10, "pe": 10, "hi": 5},
-            {"nombre": "Wilde Centro (Mitre)", "lat": -34.7001, "lon": -58.3215, "tr": 10, "pe": 10, "hi": 8},
-            {"nombre": "Predio Wilde", "lat": -34.7045, "lon": -58.3031, "tr": 5, "pe": 4, "hi": 10},
-            {"nombre": "Bajada Pte Pueyrredón", "lat": -34.6548, "lon": -58.3755, "tr": 10, "pe": 2, "hi": 3},
+            {"nombre": "Wilde Centro", "lat": -34.7001, "lon": -58.3215, "tr": 10, "pe": 10, "hi": 8},
         ]
 
-        # Calcular Scores
-        ranking = []
         m = folium.Map(location=[-34.6700, -58.3600], zoom_start=13, tiles="OpenStreetMap") # MAPA CLARO
 
+        ranking = []
         for p in puntos_base:
             score = (p['tr'] * w_trafico) + (p['pe'] * w_peaton) + (p['hi'] * w_hinchas)
             max_score = (10 * w_trafico) + (10 * w_peaton) + (10 * w_hinchas)
             porcentaje = int((score / max_score) * 100)
-            ranking.append({"Ubicación": p['nombre'], "Impacto": porcentaje})
+            ranking.append({"Lugar": p['nombre'], "Efectividad": f"{porcentaje}%"})
             
-            # Color y Radio dinámico
-            color = "green"
-            radius = 100
-            if porcentaje > 80: 
-                color = "#b71c1c" # Rojo oscuro
-                radius = 300
-            elif porcentaje > 60:
-                color = "orange"
-                radius = 200
-
+            color = "#b71c1c" if porcentaje > 80 else "orange"
             folium.Circle(
-                location=[p['lat'], p['lon']],
-                radius=radius,
-                color=color,
-                fill=True,
-                fill_opacity=0.4,
+                location=[p['lat'], p['lon']], radius=200, color=color, fill=True, fill_opacity=0.5,
                 popup=f"<b>{p['nombre']}</b><br>Impacto: {porcentaje}%"
             ).add_to(m)
 
-        st_folium(m, width=900, height=500)
-    
-    st.subheader("🏆 Ranking de Efectividad")
-    df_rank = pd.DataFrame(ranking).sort_values(by="Impacto", ascending=False)
-    st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config={"Impacto": st.column_config.ProgressColumn("Efectividad", format="%d%%", min_value=0, max_value=100)})
+        st_folium(m, width=900, height=400)
+        st.dataframe(pd.DataFrame(ranking), use_container_width=True, hide_index=True)
 
-# 10. DEFENSA (DOMO DE HIERRO MEJORADO CON INPUT CUSTOM)
+# --- TAB 10: DEFENSA (DOMO DE HIERRO CON CAMBIOS PEDIDOS) ---
 with tab_defensa:
     st.header("🛡️ DOMO DE HIERRO (Gestión de Crisis)")
     
@@ -367,7 +394,7 @@ with tab_defensa:
     with col_def1:
         st.subheader("🔥 Configuración del Ataque")
         
-        # SELECTOR MEJORADO CON OPCIÓN "OTRO"
+        # 1. SELECTOR CON OPCIÓN CUSTOM
         ataque_seleccion = st.selectbox(
             "Seleccionar Ataque Recibido:", 
             ["Seleccionar...", 
@@ -377,10 +404,12 @@ with tab_defensa:
              "✍️ OTRO (Escribir ataque personalizado...)"]
         )
         
+        # 2. INPUT CONDICIONAL
         ataque_custom = ""
         if ataque_seleccion == "✍️ OTRO (Escribir ataque personalizado...)":
             ataque_custom = st.text_area("Escribe qué están diciendo:", "Ej: Dicen que vamos a vender el predio de Wilde...")
         
+        # 3. SELECTOR DE TONO
         tono = st.select_slider("Tono de Respuesta:", ["Institucional (Datos)", "Político (Firme)", "Agresivo (Chicana)"])
         
         btn_defender = st.button("🛡️ GENERAR ESCUDO")
@@ -392,48 +421,43 @@ with tab_defensa:
             with st.spinner("Analizando puntos débiles del argumento rival..."):
                 time.sleep(1.5)
                 
-                # LÓGICA DE RESPUESTA DINÁMICA
-                dato_mata = ""
-                chicana = ""
-                salida = ""
+                dato_mata, chicana, salida = "", "", ""
                 
-                # 1. SI ES UN ATAQUE PRECARGADO
+                # LÓGICA HÍBRIDA
                 if "improvisados" in ataque_seleccion:
-                    dato_mata = "Nuestro equipo técnico suma +40 años de experiencia en gestión corporativa y deportiva."
-                    chicana = "¿Experiencia es lo que tienen ellos? Experiencia en chocar el club tienen."
-                    salida = "Prefiero la 'inexperiencia' de las manos limpias a la experiencia de los que fundieron al Rojo."
+                    dato_mata = "Nuestro equipo técnico suma +40 años de experiencia."
+                    chicana = "¿Experiencia es chocar el club como hicieron ellos?"
+                    salida = "Prefiero la 'inexperiencia' honesta a la experiencia corrupta."
                 elif "privatizar" in ataque_seleccion:
-                    dato_mata = "Art. 1 del Estatuto: Asociación Civil sin Fines de Lucro. Es legalmente imposible sin Asamblea."
-                    chicana = "Agitan el fantasma de las SAD para tapar que hoy el club ya está gerenciado por sus amigos."
-                    salida = "Ni SAD, ni este desastre actual. Queremos un Club de los Socios, pero bien administrado."
+                    dato_mata = "Art. 1 del Estatuto blinda al club como Asociación Civil."
+                    chicana = "Agitan fantasmas para tapar su propia inoperancia."
+                    salida = "Queremos un Club de los Socios, bien administrado."
                 elif "deuda" in ataque_seleccion:
-                    dato_mata = "Plan Fideicomiso 2.0 auditado + Renegociación de quirografarios con quita del 30%."
-                    chicana = "Me causa gracia que pregunten cómo pagar los que generaron la deuda. ¿Dónde está la plata?"
-                    salida = "Tenemos un plan serio. Lo que no vamos a hacer es seguir pateando cheques como hacen ahora."
-                
-                # 2. SI ES UN ATAQUE PERSONALIZADO (Lógica Genérica Inteligente)
+                    dato_mata = "Plan Fideicomiso 2.0 auditado + Renegociación."
+                    chicana = "Me causa gracia que pregunten cómo pagar los que generaron la deuda."
+                    salida = "Tenemos un plan serio, no parches."
                 elif ataque_custom:
+                    # RESPUESTA GENERICA INTELIGENTE PARA EL CUSTOM
                     if tono == "Institucional (Datos)":
-                        dato_mata = "Nuestros equipos legales y contables han auditado este tema. La propuesta es clara y está en la plataforma."
-                        chicana = "No vamos a entrar en rumores infundados."
-                        salida = "Invitamos al socio a leer nuestra plataforma completa en la web."
+                        dato_mata = "Nuestros equipos técnicos desmienten categóricamente esa versión."
+                        chicana = "No respondemos a rumores sin sustento."
+                        salida = "Los invitamos a leer nuestra plataforma oficial."
                     elif tono == "Agresivo (Chicana)":
-                        dato_mata = "Es mentira. Siguiente pregunta."
-                        chicana = f"Están nerviosos porque se les termina el kiosco. Ahora inventan que '{ataque_custom}'."
-                        salida = "Que se preocupen por gobernar los días que les quedan."
-                    else: # Político
-                        dato_mata = "Es una operación de prensa clásica de campaña."
-                        chicana = "Nos atacan porque crecemos."
-                        salida = "Nosotros hablamos de propuestas, ellos de mentiras."
+                        dato_mata = "Es mentira. Siguiente tema."
+                        chicana = f"Están nerviosos porque pierden el kiosco. Ahora inventan que '{ataque_custom}'."
+                        salida = "Que gobiernen los días que les quedan en lugar de operar."
+                    else:
+                        dato_mata = "Es una operación de prensa clásica."
+                        chicana = "Nos pegan porque crecemos en las encuestas."
+                        salida = "Nosotros propuestas, ellos mentiras."
 
-                # MOSTRAR TARJETAS
                 if dato_mata:
                     st.markdown(f"""<div class="defense-card"><h4>📊 DATO MATA RELATO</h4><p>{dato_mata}</p></div>""", unsafe_allow_html=True)
-                    st.markdown(f"""<div class="defense-card"><h4>🥊 LA CHICANA / CONTRA-GOLPE</h4><p>{chicana}</p></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="defense-card"><h4>🥊 CONTRA-GOLPE</h4><p>{chicana}</p></div>""", unsafe_allow_html=True)
                     st.markdown(f"""<div class="defense-card"><h4>🎩 SALIDA ELEGANTE</h4><p>{salida}</p></div>""", unsafe_allow_html=True)
                 else:
                     st.warning("Selecciona un ataque para generar defensa.")
 
 # Footer
 st.markdown("---")
-st.caption("🔒 Rojo War Room v5.0 | Uso exclusivo Jefatura de Campaña")
+st.caption("🔒 Rojo War Room v7.0 FINAL | Uso exclusivo Jefatura de Campaña")
