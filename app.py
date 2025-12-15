@@ -8,6 +8,8 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import random
 import time
+import folium
+from streamlit_folium import st_folium
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -85,9 +87,9 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # --- CUERPO PRINCIPAL (PESTAÑAS) ---
-# CAMBIO REALIZADO AQUÍ: "🦎 DISCURSO POLIMÓRFICO" en lugar de IA
-tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia, tab_territorio, tab_ia = st.tabs([
-    "🚨 ALERTAS", "📰 MEDIOS", "🗳️ POLÍTICA", "🐦 TWITTER", "📝 CLIPPING", "🧠 ESTRATEGIA", "🗺️ TERRITORIO", "🦎 DISCURSO POLIMÓRFICO"
+# SE AGREGA "DOMINACIÓN VISUAL" AL FINAL
+tab_alertas, tab_medios, tab_politica, tab_twitter, tab_clipping, tab_estrategia, tab_territorio, tab_ia, tab_mapa = st.tabs([
+    "🚨 ALERTAS", "📰 MEDIOS", "🗳️ POLÍTICA", "🐦 TWITTER", "📝 CLIPPING", "🧠 ESTRATEGIA", "🗺️ TERRITORIO", "🦎 DISCURSO POLIMÓRFICO", "📍 DOMINACIÓN VISUAL"
 ])
 
 # 1. PESTAÑA ALERTAS URGENTES
@@ -305,6 +307,104 @@ with tab_ia:
     * Usar **Barra** para arengas de cancha o reuniones tensas.
     * Usar **Redes** para Twitter e Instagram.
     """)
+
+# 9. PESTAÑA DOMINACIÓN VISUAL (MAPA TÁCTICO)
+with tab_mapa:
+    st.header("📍 Rutas de Dominación Visual (Avellaneda)")
+    st.markdown("Algoritmo de optimización de vía pública basado en **Tráfico + Peatones + Hinchas**.")
+
+    col_map1, col_map2 = st.columns([1, 3])
+
+    with col_map1:
+        st.subheader("⚙️ Calibración")
+        peso_trafico = st.slider("Importancia Tráfico (Autos)", 0, 10, 8)
+        peso_peatones = st.slider("Importancia Peatones", 0, 10, 6)
+        peso_hinchas = st.slider("Importancia Mundo Rojo", 0, 10, 10)
+        
+        st.divider()
+        st.info("Puntos analizados: 15 Zonas Estratégicas de Avellaneda.")
+
+    with col_map2:
+        # BASE DE DATOS DE PUNTOS ESTRATÉGICOS DE AVELLANEDA (COORDENADAS REALES)
+        puntos_estrategicos = [
+            ("Sede Av. Mitre 470", -34.6624, -58.3649, 9, 10, 10),
+            ("Estadio LDA - Bochini", -34.6702, -58.3711, 6, 8, 10),
+            ("Alto Avellaneda (Ingreso)", -34.6755, -58.3665, 9, 10, 4),
+            ("Estación Avellaneda (K. Kosteki)", -34.6566, -58.3813, 10, 10, 5),
+            ("Mitre y Las Flores (Wilde)", -34.7001, -58.3215, 10, 10, 8),
+            ("Av. Belgrano y Italia", -34.6631, -58.3622, 9, 7, 6),
+            ("Bajada Pte. Pueyrredón", -34.6548, -58.3755, 10, 1, 3),
+            ("Plaza Alsina", -34.6611, -58.3661, 7, 9, 7),
+            ("Predio Wilde", -34.7045, -58.3031, 5, 4, 10),
+            ("Crucecita (Mitre y Pavón)", -34.6690, -58.3580, 10, 5, 5),
+            ("Hospital Fiorito", -34.6580, -58.3705, 7, 9, 4),
+            ("Walmart/Parque Comercial", -34.6720, -58.3550, 8, 8, 3),
+            ("Gerli (Puente)", -34.6850, -58.3650, 8, 3, 6),
+            ("Villa Dominico (Parque)", -34.6900, -58.3400, 6, 8, 7),
+            ("Av. Roca y Debenedetti", -34.6650, -58.3450, 8, 5, 4)
+        ]
+
+        # CREACIÓN DEL MAPA
+        m = folium.Map(location=[-34.6700, -58.3600], zoom_start=13, tiles="CartoDB dark_matter")
+
+        ranking = []
+        for nombre, lat, lon, tr, pe, hi in puntos_estrategicos:
+            # Fórmula Matemática
+            score = (tr * peso_trafico) + (pe * peso_peatones) + (hi * peso_hinchas)
+            max_posible = (10 * peso_trafico) + (10 * peso_peatones) + (10 * peso_hinchas)
+            porcentaje = int((score / max_posible) * 100)
+            
+            ranking.append({"Lugar": nombre, "Efectividad": porcentaje})
+
+            # Color según efectividad
+            color = "green"
+            radius = 5
+            if porcentaje > 80:
+                color = "#e63946" # Rojo Furioso
+                radius = 15
+            elif porcentaje > 60:
+                color = "orange"
+                radius = 10
+
+            html = f"""
+            <div style='font-family:sans-serif; width:200px'>
+                <h4 style='color:black; margin-bottom:5px'>{nombre}</h4>
+                <b style='color:red; font-size:16px'>EFECTIVIDAD: {porcentaje}%</b><br>
+                🚗 Tráfico: {tr}/10<br>
+                🚶 Peatones: {pe}/10<br>
+                👹 Mundo Rojo: {hi}/10<br>
+            </div>
+            """
+            
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=radius,
+                popup=folium.Popup(html, max_width=250),
+                color=color,
+                fill=True,
+                fill_color=color,
+                fill_opacity=0.7
+            ).add_to(m)
+
+        st_folium(m, width=800, height=500)
+    
+    # TABLA DE RANKING
+    st.subheader("🏆 Top Ubicaciones para Vía Pública")
+    df_ranking = pd.DataFrame(ranking).sort_values(by="Efectividad", ascending=False)
+    
+    st.dataframe(
+        df_ranking,
+        column_config={
+            "Efectividad": st.column_config.ProgressColumn(
+                "Nivel de Impacto",
+                format="%d%%",
+                min_value=0,
+                max_value=100,
+            ),
+        },
+        hide_index=True,
+        use_container_width=True
+    )
 
 # Footer
 st.markdown("---")
